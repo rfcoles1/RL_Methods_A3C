@@ -203,6 +203,17 @@ class Worker():
                 if episode_count % 250 == 0 and episode_count != 0:
                     saver.save(sess,self.model_path+'/model-'+str(episode_count)+'cptk')
                     print "saved model"
+    
+                mean_reward = np.mean(self.episode_rewards[-5:])
+                mean_value = np.mean(self.episode_mean_values[-5:])
+                summary = tf.Summary()
+                summary.value.add(tag='Perf/Reward', simple_value=float(mean_reward))
+                summary.value.add(tag='Perf/Value', simple_value=float(mean_value))
+                summary.value.add(tag='Losses/Value_Loss', simple_value=float(v_l))
+                summary.value.add(tag='Losses/Policy_Loss', simple_value=float(p_l))
+                summary.value.add(tag='Losses/Entropy', simple_value=float(e_l))
+                summary.value.add(tag='Losses/Grad Norm', simple_value=float(g_n))
+                summary.value.add(tag='Losses/Var Norm', simple_value=float(v_n))
 
                 if self.name == 'worker_0':
                     sess.run(self.increment)
