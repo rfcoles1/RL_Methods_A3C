@@ -149,6 +149,7 @@ class Worker():
                 episode_step_count = 0
                 d = False
                 
+                self.env.newEpisode()
                 s = self.env.get_State()
                 episode_frames.append(s)
                 rnn_state = self.local_AC.state_init
@@ -162,10 +163,10 @@ class Worker():
                         self.local_AC.state_in[1]:rnn_state[1]})
                     a = np.random.choice(a_dist[0], p = a_dist[0])
                     a = np.argmax(a_dist == a)
-                    
                     self.env.perform_action(a) 
                     
                     r,_ = self.env.perform_action(a)                    
+                    
                     d = self.env.is_finished()
                     if d == False:
                         s1 = self.env.get_State()
@@ -209,11 +210,11 @@ class Worker():
                 summary = tf.Summary()
                 summary.value.add(tag='Perf/Reward', simple_value=float(mean_reward))
                 summary.value.add(tag='Perf/Value', simple_value=float(mean_value))
-                summary.value.add(tag='Losses/Value_Loss', simple_value=float(v_l))
-                summary.value.add(tag='Losses/Policy_Loss', simple_value=float(p_l))
-                summary.value.add(tag='Losses/Entropy', simple_value=float(e_l))
-                summary.value.add(tag='Losses/Grad Norm', simple_value=float(g_n))
-                summary.value.add(tag='Losses/Var Norm', simple_value=float(v_n))
+                #summary.value.add(tag='Losses/Value_Loss', simple_value=float(v_l))
+                #summary.value.add(tag='Losses/Policy_Loss', simple_value=float(p_l))
+                #summary.value.add(tag='Losses/Entropy', simple_value=float(e_l))
+                #summary.value.add(tag='Losses/Grad Norm', simple_value=float(g_n))
+                #summary.value.add(tag='Losses/Var Norm', simple_value=float(v_n))
 
                 self.summary_writer.add_summary(summary,episode_count)
                 self.summary_writer.flush()
@@ -232,6 +233,8 @@ a_size = 7
 
 load_model = False
 model_path = './model'
+
+tf.reset_default_graph()
 
 if not os.path.exists(model_path):
     os.makedirs(model_path)
