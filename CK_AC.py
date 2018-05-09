@@ -215,6 +215,9 @@ class Worker():
                 summary.value.add(tag='Losses/Grad Norm', simple_value=float(g_n))
                 summary.value.add(tag='Losses/Var Norm', simple_value=float(v_n))
 
+                self.summary_writer.add_summary(summary,episode_count)
+                self.summary_writer.flush()
+
                 if self.name == 'worker_0':
                     sess.run(self.increment)
                 episode_count += 1
