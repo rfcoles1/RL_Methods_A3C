@@ -9,8 +9,6 @@ import gym
 
 game = gym.make('CartPole-v0')
 
-
-
 class AC_Network():
     def __init__(self,s_size,a_size,scope,trainer):
         with tf.variable_scope(scope):
@@ -18,7 +16,14 @@ class AC_Network():
             #input layers
             self.inputs = tf.placeholder(shape=[None,s_size], dtype = tf.float32)
 
-            #lstm - From tutorial, test w/wout
+            #hidden layers
+            #fc1 = slim.fully_connected(self.inputs, num_hidden,
+            #    activation_fn = tf.nn.relu,
+            #    weights_initializer = tf.contrib.layers.xavier_initializer(),
+            #    biases_initializer=tf.zeros_initializer())
+
+
+            #lstm - From tutorial, test w/wout       
             lstm_cell = tf.contrib.rnn.BasicLSTMCell(s_size,state_is_tuple=True)
             c_init = np.zeros((1,lstm_cell.state_size.c), np.float32)
             h_init = np.zeros((1,lstm_cell.state_size.h), np.float32)
@@ -34,15 +39,16 @@ class AC_Network():
             lstm_c, lstm_h = lstm_state
             self.state_out = (lstm_c[:1, :], lstm_h[:1, :])
             rnn_out = tf.reshape(lstm_outputs, [-1,s_size])
-           
+            
+
             #output layers for policy and value
             self.policy = slim.fully_connected(rnn_out,a_size,
                 activation_fn=tf.nn.softmax,
-                weights_initializer=normalized_columns_initializer(0.01),
+                weights_initializer = tf.contrib.layers.xavier_initializer(),
                 biases_initializer = None)
             self.value = slim.fully_connected(rnn_out,1,
                 activation_fn=None,
-                weights_initializer = normalized_columns_initializer(1.0),
+                weights_initializer  = tf.contrib.layers.xavier_initializer(),
                 biases_initializer = None)
             
             if scope != 'global': #allows a worker access to loss function and gradient update functions
@@ -75,12 +81,14 @@ def update_target_graph(from_scope,to_scope): #sets workers parameters to be sam
         op_holder.append(to_var.assign(from_var))
     return op_holder
 
-def normalized_columns_initializer(std=1.0): #Why? Initializes weights
+"""
+def normalized_columns_initializer(std=1.0): #Why this initializer? Initializes weights
     def _initializer(shape, dtype=None, partition_info=None):
         out = np.random.randn(*shape).astype(np.float32)
         out *= std / np.sqrt(np.square(out).sum(axis=0, keepdims=True))
         return tf.constant(out)
     return _initializer
+"""
 
 def discount(x,gamma): #calculates discounted returns
     return scipy.signal.lfilter([1],[1,-gamma], x[::-1], axis=0)[::-1]
@@ -97,7 +105,6 @@ class Worker():
         self.episode_lengths = []
         self.episode_mean_values = []
         self.summary_writer = tf.summary.FileWriter("train_" + str(self.number))
-
 
         #initalizes game
         self.env = game
@@ -214,6 +221,7 @@ class Worker():
                     mean_reward = np.mean(self.episode_rewards[-5:])
                     mean_value = np.mean(self.episode_mean_values[-5:])
                     summary = tf.Summary()
+#add summary class?
                     summary.value.add(tag='Perf/Reward', simple_value=float(mean_reward))
                     summary.value.add(tag='Perf/Value', simple_value=float(mean_value))
                     #summary.value.add(tag='Losses/Value_Loss', simple_value=float(v_l))
@@ -231,9 +239,11 @@ class Worker():
                 episode_count += 1
                 
 
-                        
+                     
 gamma = .99
-#######################
+num_hidden = 100
+lr = 1e-4
+checkpoints = 5
 #needs to generalized for any game
 max_episode_length = 300
 
@@ -241,10 +251,8 @@ s_size = len(game.reset())
 a_size = game.action_space.n
 
 
-#######################
 load_model = False
 model_path = './model'
-
 if not os.path.exists(model_path):
     os.makedirs(model_path)
 
@@ -253,18 +261,19 @@ tf.reset_default_graph()
 
 with tf.device("/cpu:0"):
     global_episodes = tf.Variable(0,dtype=tf.int32, name = 'global_episodes', trainable=False)
-    trainer = tf.train.AdamOptimizer(learning_rate=1e-4)
+    trainer = tf.train.AdamOptimizer(learning_rate=lr)
     master_network = AC_Network(s_size,a_size,'global',None)
 
     num_workers = multiprocessing.cpu_count()
     workers = []
     for i in range(num_workers):
         workers.append(Worker(gym.make('CartPole-v0'),i,s_size,a_size,trainer,model_path,global_episodes))
-    saver = tf.train.Saver(max_to_keep=5)
+    saver = tf.train.Saver(max_to_keep=checkpoints)
         
 
 with tf.Session() as sess:
     coord = tf.train.Coordinator()
+
     if load_model == True:
         print 'Loading Model'
         ckpt = tf.train.get_checkpoint_state(model_path)
@@ -274,8 +283,7 @@ with tf.Session() as sess:
 
     worker_threads = []
     for worker in workers:
-        worker_work = lambda: worker.work(max_episode_length, gamma, sess, coord,saver)
-        t = threading.Thread(target = (worker_work))
+        t = threading.Thread(target = worker.work(max_episode_length, gamma, sess, coord,saver))
         t.start()
         worker_threads.append(t)
     coord.join(worker_threads)
