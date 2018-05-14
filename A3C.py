@@ -9,7 +9,8 @@ import gym
 
 from A3C_Network import AC_Network
 
-game = gym.make('CartPole-v0')
+env_name = 'MountainCar-v0'
+game = gym.make(env_name)
 
 
 def update_target_graph(from_scope,to_scope): #sets workers parameters to be same as the global network
@@ -23,8 +24,8 @@ def update_target_graph(from_scope,to_scope): #sets workers parameters to be sam
 
 
 def discount(rewards,gamma): #calculates discounted returns
-    #return np.sum([rewards[i]*gamma**i for i in range(len(rewards))])
     return scipy.signal.lfilter([1],[1,-gamma],rewards[::-1],axis=0)[::-1]
+
 
 class Worker():
     def __init__(self, game, name, s_size, a_size, trainer, model_path, global_episodes):
@@ -43,7 +44,7 @@ class Worker():
         self.env = game
 
         #gives local copy of network
-        self.local_AC = AC_Network(s_size, a_size, self.name, trainer)
+        self.local_AC = AC_Network(s_size, a_size, num_hidden, self.name, trainer)
         self.update_local_ops = update_target_graph('global',self.name)
 
     def train(self, rollout, sess, gamma, bootstrap_value):
@@ -79,7 +80,7 @@ class Worker():
         return v_l / len(rollout), p_l / len(rollout), e_l / len(rollout), g_n, v_n
 
 
-    def work(self,max_episode_length, gamma, sess, coord, saver):
+    def work(self,max_episode_len, gamma, sess, coord, saver):
         episode_count = sess.run(self.global_episodes)
         total_steps = 0
         print "Starting worker " + str(self.number)
@@ -87,32 +88,32 @@ class Worker():
             while not coord.should_stop(): 
                 sess.run(self.update_local_ops)
                 episode_buffer = []
-                episode_values = []
-                episode_frames = []
+                episode_values = np.empty(max_episode_len)
+                episode_frames = np.empty([max_episode_len, s_size])
                 episode_reward = 0
                 episode_step_count = 0
                 d = False #done
                 
                 s = self.env.reset()
-                episode_frames.append(s)
+                episode_frames[0] = s
                 
-                while d == False:
+                for i in range(max_episode_len):
                     #take action according to policy network
                     policy,value = sess.run([self.local_AC.policy, self.local_AC.value],
                         feed_dict={self.local_AC.inputs:[s]})
-#self.local_AC.get_policy_value(sess,s)
+                    #self.local_AC.get_policy_value(sess,s)
                     a = np.random.choice(policy[0], p = policy[0])
                     a = np.argmax(policy == a)
                     
 
                     s1,r,d,_ = self.env.step(a)                    
                     if d == False:
-                        episode_frames.append(s1)
+                        episode_frames[i+1] = s1
                     else: 
                         s1 = s
 
                     episode_buffer.append([s,a,r,s1,d,value[0,0]])
-                    episode_values.append(value[0,0])
+                    episode_values[i] = value[0,0]
 
                     episode_reward += r
                     s = s1
@@ -121,7 +122,7 @@ class Worker():
 
                     #if episode hasnt ended, but experience buffer is full
                     #make update using that experience rollout
-                    if len(episode_buffer) == 30 and d != True and episode_step_count != max_episode_length -1:
+                    if len(episode_buffer) == buffer_len and d != True and episode_step_count != max_episode_len -1:
                         #value estimation
                         v1 = sess.run(self.local_AC.value,
                             feed_dict={self.local_AC.inputs:[s]})
@@ -161,8 +162,9 @@ class Worker():
                     self.summary_writer.flush()
 
                 #why
-                if self.name == 'worker_0':
-                    sess.run(self.increment)
+
+                #if self.name == 'worker_0':
+                 #   sess.run(self.increment)
                 episode_count += 1
                 
 
@@ -172,7 +174,8 @@ num_hidden = 100
 lr = 1e-4
 checkpoints = 5
 #needs to generalized for any game
-max_episode_length = 300
+max_episode_len = 300
+buffer_len = 30
 
 s_size = len(game.reset())
 a_size = game.action_space.n
@@ -189,12 +192,12 @@ tf.reset_default_graph()
 with tf.device("/cpu:0"):
     global_episodes = tf.Variable(0,dtype=tf.int32, name = 'global_episodes', trainable=False)
     trainer = tf.train.AdamOptimizer(learning_rate=lr)
-    master_network = AC_Network(s_size,a_size,'global',None)
+    master_network = AC_Network(s_size,a_size,num_hidden,'global',None)
 
     num_workers = multiprocessing.cpu_count()
     workers = []
     for i in range(num_workers):
-        workers.append(Worker(gym.make('CartPole-v0'),i,s_size,a_size,trainer,model_path,global_episodes))
+        workers.append(Worker(gym.make(env_name),i,s_size,a_size,trainer,model_path,global_episodes))
     saver = tf.train.Saver(max_to_keep=checkpoints)
         
 
@@ -210,7 +213,7 @@ with tf.Session() as sess:
 
     worker_threads = []
     for worker in workers: 
-        worker_work = lambda: worker.work(max_episode_length, gamma, sess,coord,saver)
+        worker_work = lambda: worker.work(max_episode_len, gamma, sess,coord,saver)
         t = threading.Thread(target = (worker_work))
         t.start()
         worker_threads.append(t)

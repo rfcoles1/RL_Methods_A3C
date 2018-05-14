@@ -1,18 +1,11 @@
 import numpy as np
-import scipy.signal
 import tensorflow as tf
 import tensorflow.contrib.slim as slim
-import threading 
-import multiprocessing
-import os
-import gym 
 
-game = gym.make('CartPole-v0')
 
-num_hidden = 100
 
 class AC_Network():
-    def __init__(self,s_size,a_size,scope,trainer):
+    def __init__(self,s_size,a_size,num_hidden,scope,trainer):
         with tf.variable_scope(scope):
                       
             #input layers           
