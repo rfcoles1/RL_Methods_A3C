@@ -152,11 +152,11 @@ class Worker():
 #add summary class?
                     summary.value.add(tag='Perf/Reward', simple_value=float(mean_reward))
                     summary.value.add(tag='Perf/Value', simple_value=float(mean_value))
-                    #summary.value.add(tag='Losses/Value_Loss', simple_value=float(v_l))
-                    #summary.value.add(tag='Losses/Policy_Loss', simple_value=float(p_l))
-                    #summary.value.add(tag='Losses/Entropy', simple_value=float(e_l))
-                    #summary.value.add(tag='Losses/Grad Norm', simple_value=float(g_n))
-                    #summary.value.add(tag='Losses/Var Norm', simple_value=float(v_n))
+                    summary.value.add(tag='Losses/Value_Loss', simple_value=float(v_l))
+                    summary.value.add(tag='Losses/Policy_Loss', simple_value=float(p_l))
+                    summary.value.add(tag='Losses/Entropy', simple_value=float(e_l))
+                    summary.value.add(tag='Losses/Grad Norm', simple_value=float(g_n))
+                    summary.value.add(tag='Losses/Var Norm', simple_value=float(v_n))
 
                     self.summary_writer.add_summary(summary,episode_count)
                     self.summary_writer.flush()
@@ -170,7 +170,7 @@ class Worker():
 
                      
 gamma = .99
-num_hidden = 100
+num_hidden = 128
 lr = 1e-4
 checkpoints = 5
 #needs to generalized for any game
@@ -178,7 +178,12 @@ max_episode_len = 300
 buffer_len = 30
 
 s_size = len(game.reset())
-a_size = game.action_space.n
+#the following allows the network to work with both discrete and continuous actions spaces
+actions = game.action_space
+if not actions: #if
+    a_size = actions.shape[0]
+else:
+    a_size = actions.n 
 
 
 load_model = False
