@@ -2,27 +2,25 @@ import numpy as np
 import tensorflow as tf
 import tensorflow.contrib.slim as slim
 
-
-
 class AC_Network():
-    def __init__(self,s_size,a_size,num_hidden,scope,trainer):
+    def __init__(self,config,scope,trainer):
         with tf.variable_scope(scope):
                       
             #input layers           
-            self.inputs = tf.placeholder(shape=[None,s_size], dtype = tf.float32)
+            self.inputs = tf.placeholder(shape=[None,config.s_size], dtype = tf.float32)
 
-            fc1 = slim.fully_connected(self.inputs, num_hidden,
+            fc1 = slim.fully_connected(self.inputs, config.num_hidden,
                 activation_fn = tf.nn.relu,
                 weights_initializer = tf.contrib.layers.xavier_initializer(),
                 biases_initializer = tf.zeros_initializer())
 
-            fc2 = slim.fully_connected(self.inputs, num_hidden,
+            fc2 = slim.fully_connected(self.inputs, config.num_hidden,
                 activation_fn = tf.nn.relu,
                 weights_initializer = tf.contrib.layers.xavier_initializer(),
                 biases_initializer = tf.zeros_initializer())
 
             #output layers for policy and value
-            self.policy = slim.fully_connected(fc2,a_size,
+            self.policy = slim.fully_connected(fc2,config.a_size,
                 activation_fn=tf.nn.softmax,
                 weights_initializer = tf.contrib.layers.xavier_initializer(),
                 biases_initializer = None)
@@ -33,7 +31,7 @@ class AC_Network():
             
             if scope != 'global': #allows a worker access to loss function and gradient update functions
                 self.actions = tf.placeholder(shape = [None], dtype = tf.int32)
-                self.actions_onehot = tf.one_hot(self.actions, a_size, dtype = tf.float32)
+                self.actions_onehot = tf.one_hot(self.actions, config.a_size, dtype = tf.float32)
                 self.target_v = tf.placeholder(shape = [None], dtype = tf.float32)
                 self.advantages = tf.placeholder(shape = [None], dtype = tf.float32)
 
@@ -52,6 +50,7 @@ class AC_Network():
                 global_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, 'global')
                 self.apply_grads = trainer.apply_gradients(zip(grads,global_vars))
 
+"""
     def get_policy(self,state):
         return self.sess.run(self.policy, {self.inputs:state})
 
@@ -61,4 +60,4 @@ class AC_Network():
     def get_policy_value(self,sess,state):
         policy, value = sess.run([self.policy, self.value], {self.inputs:state})
         return policy, value
- 
+"""
