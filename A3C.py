@@ -52,7 +52,8 @@ class Worker():
         observations = batch[:,0]
         actions = batch[:,1]
         rewards = batch[:,2]
-        next_observations = batch[:,3]
+        next_observations = batch[:,3] 
+        #batch[:,4] not needed
         values = batch[:,5]
 
         #generate advantage and discounted returns 
@@ -63,11 +64,15 @@ class Worker():
         advantages = rewards + self.config.gamma*self.value_plus[1:] - self.value_plus[:-1]
         advantages = discount(advantages,self.config.gamma)
 
-        
+        if self.config.mode == 'discrete':
+            actions = actions
+        elif self.config.mode == 'continuous':
+            actions = np.array(np.vstack(actions))
+
         #update global network using gradients from loss
         feed_dict = {self.local_AC.target_v:discounted_rewards,
             self.local_AC.inputs:np.vstack(observations),
-            self.local_AC.actions:actions,
+            self.local_AC.actions:(actions),
             self.local_AC.advantages:advantages}
         #generate network statistics
         v_l,p_l,e_l,g_n,v_n,_ = sess.run([self.local_AC.value_loss,
@@ -99,11 +104,14 @@ class Worker():
                 
                 for i in range(self.config.max_episode_len):
                     #take action according to policy network
-                    policy,value = sess.run([self.local_AC.policy, self.local_AC.value],
+               
+                    value = sess.run(self.local_AC.value,
                         feed_dict={self.local_AC.inputs:[s]})
                     #self.local_AC.get_policy_value(sess,s)
-                    a = np.random.choice(policy[0], p = policy[0])
-                    a = np.argmax(policy == a)
+                    #a = np.random.choice(policy[0], p = policy[0])
+                    #a = np.argmax(policy == a)
+                    
+                    a = sess.run(self.local_AC.choose_action(), feed_dict={self.local_AC.inputs:[s]})
 
                     s1,r,done,_ = self.env.step(a)                    
                     if done == False:
@@ -128,7 +136,7 @@ class Worker():
                         v_l,p_l,e_l,g_n,v_n = self.train(episode_buffer, sess, v1)
                         episode_buffer = []
                         sess.run(self.update_local_ops)
-                
+                        print 'yay' 
                     if done == True:
                         break
                 

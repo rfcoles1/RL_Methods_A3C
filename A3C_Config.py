@@ -3,8 +3,12 @@ import gym
 import multiprocessing
 
 class Config:
-    env_name = 'CartPole-v0'
-    mode = 'discrete' #discrete/continuous
+    env_name = 'Pendulum-v0'
+    if env_name == 'CartPole-v0' or env_name == 'MountainCar-v0':
+        mode = 'discrete'
+    elif env_name == 'MountainCarContinuous-v0' or env_name == 'Pendulum-v0' or env_name == 'Acrobot-v1': 
+        mode = 'continuous'
+    #discrete/continuous
 
     gamma = .99
     num_hidden = 128
@@ -20,7 +24,7 @@ class Config:
     if not os.path.exists(model_path):
         os.makedirs(model_path)
 
-    num_workers = 1 #multiprocessing.cpu_count() 
+    num_workers = multiprocessing.cpu_count() 
 
     game = gym.make(env_name)
     s_size = len(game.reset()) 
@@ -28,6 +32,6 @@ class Config:
         a_size = game.action_space.n
     else:
         a_size = game.action_space.shape[0]
-        a_bound = [game.action_space.low, game.action_space.high]
-        a_gap = game.action_space.high - game.action_space.low
+        a_bounds = [game.action_space.low, game.action_space.high]
+        a_range = game.action_space.high - game.action_space.low
         max_ep_step = 400
