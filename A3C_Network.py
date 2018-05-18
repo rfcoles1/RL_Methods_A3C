@@ -22,12 +22,12 @@ class AC_Network():
 
             #output layers for policy and value
             #actor
-            if config.mode == 'discrete':
+            if self.config.mode == 'discrete':
                 self.policy = slim.fully_connected(fc2, self.config.a_size,
                     activation_fn=tf.nn.softmax,
                     weights_initializer = tf.contrib.layers.xavier_initializer(),
                     biases_initializer = None)
-            elif config.mode == 'continuous':
+            elif self.config.mode == 'continuous':
                 self.mu = slim.fully_connected(fc2, self.config.a_size, 
                     activation_fn=tf.nn.softmax,
                     weights_initializer = tf.contrib.layers.xavier_initializer(),
@@ -45,12 +45,6 @@ class AC_Network():
                 biases_initializer = None)
             
             if scope != 'global': #allows a worker access to loss function and gradient update functions
-                """
-                if config.mode == 'discrete':
-                    self.actions = tf.placeholder(shape = [None,], dtype = tf.int32)
-                elif config.mode == 'continuous':
-                    self.actions = tf.placeholder(shape = [None, self.config.a_size], dtype = tf.float32)
-                """             
                 self.target_v = tf.placeholder(shape = [None], dtype = tf.float32)
                 self.td_loss = self.target_v - tf.reshape(self.value,[-1])
                 self.value_loss = 0.5*tf.reduce_sum(tf.square(self.td_loss))
@@ -78,7 +72,6 @@ class AC_Network():
                 global_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, 'global')
                 self.apply_grads = trainer.apply_gradients(zip(grads,global_vars))
 
-    #credit github.com/go2sea 
     def choose_action(self):
         if self.config.mode == 'discrete':
             return tf.multinomial(tf.log(self.policy), 1)[0][0]

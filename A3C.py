@@ -40,11 +40,10 @@ class Worker():
         self.episode_mean_values = []
         self.summary_writer = tf.summary.FileWriter("train_" + str(self.number))
 
-        #initalizes game
-        self.env = gym.make(config.env_name)
+        self.env = gym.make(self.config.env_name)
 
         #gives local copy of network
-        self.local_AC = AC_Network(config, self.name, trainer)
+        self.local_AC = AC_Network(self.config, self.name, trainer)
         self.update_local_ops = update_target_graph('global',self.name)
 
     def train(self, batch, sess, bootstrap_value):
@@ -57,7 +56,7 @@ class Worker():
         values = batch[:,5]
 
         #generate advantage and discounted returns 
-        #uses generalized advantage esitamtor 
+        #uses generalized advantage estimator 
         self.rewards_plus = np.asarray(rewards.tolist() + [bootstrap_value])
         discounted_rewards = discount(self.rewards_plus,self.config.gamma)[:-1]
         self.value_plus = np.asarray(values.tolist() + [bootstrap_value])
@@ -97,25 +96,20 @@ class Worker():
                 episode_frames = np.empty([self.config.max_episode_len, self.config.s_size])
                 episode_reward = 0
                 episode_step_count = 0
-                done = False #done
+                done = False 
                 
                 s = self.env.reset()
                 episode_frames[0] = s
                 
                 for i in range(self.config.max_episode_len):
-                    #take action according to policy network
-               
                     value = sess.run(self.local_AC.value,
                         feed_dict={self.local_AC.inputs:[s]})
-                    #self.local_AC.get_policy_value(sess,s)
-                    #a = np.random.choice(policy[0], p = policy[0])
-                    #a = np.argmax(policy == a)
                     
                     a = sess.run(self.local_AC.choose_action(), feed_dict={self.local_AC.inputs:[s]})
 
                     s1,r,done,_ = self.env.step(a)                    
                     if done == False:
-                        episode_frames[i+1] = s1
+                        episode_frames[i] = s1
                     else: 
                         s1 = s
 
@@ -136,7 +130,6 @@ class Worker():
                         v_l,p_l,e_l,g_n,v_n = self.train(episode_buffer, sess, v1)
                         episode_buffer = []
                         sess.run(self.update_local_ops)
-                        print 'yay' 
                     if done == True:
                         break
                 
@@ -144,7 +137,7 @@ class Worker():
                 self.episode_lengths.append(episode_step_count)
                 self.episode_mean_values.append(np.mean(episode_values))
 
-                #update network at end of epidsode
+                #update network at end of episode
                 if len(episode_buffer) != 0:
                     v_l,p_l,e_l,g_n,v_n = self.train(episode_buffer, sess, 0.0)
 
@@ -167,7 +160,6 @@ class Worker():
                     self.summary_writer.add_summary(summary, episode_count)
                     self.summary_writer.flush()
 
-                #why
                 if self.name == 'worker_0':
                     sess.run(self.increment)
                 episode_count += 1
@@ -175,7 +167,7 @@ class Worker():
 
 tf.reset_default_graph()
 config = Config()
-mutex = threading.Lock()
+mutex = threading.Lock()#currently not used
 
 with tf.device("/cpu:0"):   
     global_episodes = tf.Variable(0, dtype=tf.int32, name = 'global_episodes', trainable=False)
