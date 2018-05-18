@@ -3,7 +3,7 @@ import gym
 import multiprocessing
 
 class Config:
-    env_name = 'CartPole-v0'
+    env_name = 'MountainCarContinuous-v0'
     if env_name == 'CartPole-v0' or env_name == 'MountainCar-v0':
         mode = 'discrete'
     elif env_name == 'MountainCarContinuous-v0' or env_name == 'Pendulum-v0' or env_name == 'Acrobot-v1': 

@@ -10,6 +10,12 @@ import time
 from A3C_Config import Config
 from A3C_Network import AC_Network
 
+"""
+credit 
+github.com/awjuliani for A3C framework and discrete network
+github.com/go2sea for discrete/continuous distinction
+"""
+
 #helper functions
 #sets workers parameters to be same as the global network
 def update_target_graph(from_scope,to_scope): 
@@ -63,15 +69,13 @@ class Worker():
         advantages = rewards + self.config.gamma*self.value_plus[1:] - self.value_plus[:-1]
         advantages = discount(advantages,self.config.gamma)
 
-        if self.config.mode == 'discrete':
-            actions = actions
-        elif self.config.mode == 'continuous':
+        if self.config.mode == 'continuous':
             actions = np.array(np.vstack(actions))
 
         #update global network using gradients from loss
-        feed_dict = {self.local_AC.target_v:discounted_rewards,
+        feed_dict = {self.local_AC.target_v:discounted_rewards.flatten(),
             self.local_AC.inputs:np.vstack(observations),
-            self.local_AC.actions:(actions),
+            self.local_AC.actions:actions,
             self.local_AC.advantages:advantages}
         #generate network statistics
         v_l,p_l,e_l,g_n,v_n,_ = sess.run([self.local_AC.value_loss,
@@ -100,14 +104,22 @@ class Worker():
                 
                 s = self.env.reset()
                 episode_frames[0] = s
+
                 
                 for i in range(self.config.max_episode_len):
-                    value = sess.run(self.local_AC.value,
-                        feed_dict={self.local_AC.inputs:[s]})
-                    
-                    a = sess.run(self.local_AC.choose_action(), feed_dict={self.local_AC.inputs:[s]})
+                    if self.config.mode == 'discrete':
+                        policy, value = sess.run([self.local_AC.policy, self.local_AC.value],
+                            feed_dict={self.local_AC.inputs:[s]})
+                        a = np.random.choice(policy[0], p = policy[0])
+                        a = np.argmax(policy == a)
+                    elif self.config.mode == 'continuous':
+                        policy,value = sess.run([self.local_AC.policy_norm_dist.sample(1), self.local_AC.value],
+                            feed_dict={self.local_AC.inputs:[s]})
+                        a = policy * self.config.a_range + self.config.a_bounds[0]
+                        a = np.clip(a, self.config.a_bounds[0][0], self.config.a_bounds[1][0])[0]
 
-                    s1,r,done,_ = self.env.step(a)                    
+                    s1,r,done,_ = self.env.step(a)    
+                    s1 = s1.flatten()
                     if done == False:
                         episode_frames[i] = s1
                     else: 
@@ -141,6 +153,7 @@ class Worker():
                 if len(episode_buffer) != 0:
                     v_l,p_l,e_l,g_n,v_n = self.train(episode_buffer, sess, 0.0)
 
+                print episode_count
                 #save stats
                 if episode_count % self.config.save_freq == 0 and episode_count != 0:
                     saver.save(sess, self.config.model_path + '/model-' + str(episode_count) + 'cptk')

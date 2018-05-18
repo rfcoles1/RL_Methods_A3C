@@ -72,11 +72,3 @@ class AC_Network():
                 global_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, 'global')
                 self.apply_grads = trainer.apply_gradients(zip(grads,global_vars))
 
-    def choose_action(self):
-        if self.config.mode == 'discrete':
-            return tf.multinomial(tf.log(self.policy), 1)[0][0]
-        elif self.config.mode == 'continuous':
-            sample_action = self.policy_norm_dist.sample(1) * self.config.a_range + self.config.a_bounds[0]
-            return tf.clip_by_value(tf.squeeze(sample_action, axis=0), self.config.a_bounds[0][0], self.config.a_bounds[1][0])[0]
-
-
