@@ -10,11 +10,14 @@ import time
 from A3C_Config import Config
 from A3C_Network import AC_Network
 
+
+
 """
 credit 
 github.com/awjuliani for A3C framework and discrete network
 github.com/go2sea for discrete/continuous distinction
 """
+
 
 #helper functions
 #sets workers parameters to be same as the global network
@@ -92,8 +95,10 @@ class Worker():
         episode_count = sess.run(self.global_episodes)
         total_steps = 0
         print "Starting worker " + str(self.number)
+        
         with sess.as_default(), sess.graph.as_default():
             while not coord.should_stop(): 
+                start = time.time()
                 sess.run(self.update_local_ops)
                 episode_buffer = []
                 episode_values = np.empty(self.config.max_episode_len)
@@ -113,10 +118,8 @@ class Worker():
                         a = np.random.choice(policy[0], p = policy[0])
                         a = np.argmax(policy == a)
                     elif self.config.mode == 'continuous':
-                        policy,value = sess.run([self.local_AC.policy_norm_dist.sample(1), self.local_AC.value],
+                        a,value = sess.run([self.local_AC.A, self.local_AC.value],
                             feed_dict={self.local_AC.inputs:[s]})
-                        a = policy * self.config.a_range + self.config.a_bounds[0]
-                        a = np.clip(a, self.config.a_bounds[0][0], self.config.a_bounds[1][0])[0]
 
                     s1,r,done,_ = self.env.step(a)    
                     s1 = s1.flatten()
@@ -153,7 +156,7 @@ class Worker():
                 if len(episode_buffer) != 0:
                     v_l,p_l,e_l,g_n,v_n = self.train(episode_buffer, sess, 0.0)
 
-                print episode_count
+                end = time.time()
                 #save stats
                 if episode_count % self.config.save_freq == 0 and episode_count != 0:
                     saver.save(sess, self.config.model_path + '/model-' + str(episode_count) + 'cptk')

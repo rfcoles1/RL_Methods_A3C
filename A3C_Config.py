@@ -13,6 +13,7 @@ class Config:
     gamma = .99
     num_hidden = 128
     lr = 1e-4
+    entropy_beta = 0.01
     checkpoints = 3
 
     save_freq = 100
@@ -34,4 +35,3 @@ class Config:
         a_size = game.action_space.shape[0]
         a_bounds = [game.action_space.low, game.action_space.high]
         a_range = game.action_space.high - game.action_space.low
-        max_ep_step = 400

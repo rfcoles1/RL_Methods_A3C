@@ -29,11 +29,11 @@ class AC_Network():
                     biases_initializer = None)
             elif self.config.mode == 'continuous':
                 self.mu = slim.fully_connected(fc2, self.config.a_size, 
-                    activation_fn=tf.nn.softmax,
+                    activation_fn=tf.nn.tanh,
                     weights_initializer = tf.contrib.layers.xavier_initializer(),
                     biases_initializer = None)
                 self.sigma = slim.fully_connected(fc2, self.config.a_size, 
-                    activation_fn=tf.nn.softmax,
+                    activation_fn=tf.nn.softplus,
                     weights_initializer = tf.contrib.layers.xavier_initializer(),
                     biases_initializer = None)
                 self.policy_norm_dist = tf.contrib.distributions.Normal(self.mu, self.sigma)
@@ -61,9 +61,10 @@ class AC_Network():
                     self.actions = tf.placeholder(shape = [None, self.config.a_size], dtype = tf.float32)
                     self.log_prob = self.policy_norm_dist.log_prob(self.actions)
                     self.entropy = self.policy_norm_dist.entropy() 
-                    self.policy_loss = -tf.reduce_mean(-(self.entropy + self.log_prob*self.td_loss)) 
+                    self.policy_loss = -tf.reduce_mean(-(self.entropy + self.log_prob*self.td_loss))
+                    self.A = tf.clip_by_value(tf.squeeze(self.policy_norm_dist.sample(1), axis=0), self.config.a_bounds[0][0], self.config.a_bounds[1][0])
 
-                self.loss = 0.5*self.value_loss + self.policy_loss - self.entropy * 0.01
+                self.loss = 0.5*self.value_loss + self.policy_loss - self.entropy * self.config.entropy_beta
                 local_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope)
                 self.gradients = tf.gradients(self.loss, local_vars)
                 self.var_norms = tf.global_norm(local_vars)
@@ -72,3 +73,4 @@ class AC_Network():
                 global_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, 'global')
                 self.apply_grads = trainer.apply_gradients(zip(grads,global_vars))
 
+                    
