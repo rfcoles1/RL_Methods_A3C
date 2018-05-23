@@ -6,7 +6,6 @@ import threading
 import multiprocessing
 import os
 import gym 
-import time
 from A3C_Config import Config
 from A3C_Network import AC_Network
 
@@ -36,13 +35,12 @@ def discount(rewards,gamma):
 
 
 class Worker():
-    def __init__(self, name, config, trainer, global_episodes, mutex):
+    def __init__(self, name, config, trainer, global_episodes):
         self.name = 'worker_' + str(name)
         self.number = name
         self.config = config
         self.trainer = trainer
         self.global_episodes = global_episodes
-        self.mutex = mutex
         self.increment = self.global_episodes.assign_add(1)
         self.episode_rewards = []
         self.episode_lengths = []
@@ -81,14 +79,13 @@ class Worker():
             self.local_AC.actions:actions,
             self.local_AC.advantages:advantages}
         #generate network statistics
-        v_l,p_l,e_l,g_n,v_n,_ = sess.run([self.local_AC.value_loss,
+        v_l,p_l,e_l,_ = sess.run([self.local_AC.value_loss,
             self.local_AC.policy_loss,
             self.local_AC.entropy,
-            self.local_AC.grad_norms,
-            self.local_AC.var_norms,
             self.local_AC.apply_grads],
             feed_dict = feed_dict)
-        return v_l/len(batch), p_l/len(batch), e_l/len(batch), g_n, v_n
+
+        return v_l/len(batch), p_l/len(batch), e_l/len(batch)
 
 
     def work(self,sess, coord, saver):
@@ -98,7 +95,6 @@ class Worker():
         
         with sess.as_default(), sess.graph.as_default():
             while not coord.should_stop(): 
-                start = time.time()
                 sess.run(self.update_local_ops)
                 episode_buffer = []
                 episode_values = np.empty(self.config.max_episode_len)
@@ -110,7 +106,6 @@ class Worker():
                 s = self.env.reset()
                 episode_frames[0] = s
 
-                
                 for i in range(self.config.max_episode_len):
                     a,value = sess.run([self.local_AC.A, self.local_AC.value],
                         feed_dict={self.local_AC.inputs:[s]})
@@ -135,7 +130,7 @@ class Worker():
                         #value estimation
                         v1 = sess.run(self.local_AC.value,
                             feed_dict={self.local_AC.inputs:[s]})
-                        v_l,p_l,e_l,g_n,v_n = self.train(episode_buffer, sess, v1)
+                        v_l,p_l,e_l = self.train(episode_buffer, sess, v1)
                         episode_buffer = []
                         sess.run(self.update_local_ops)
                     if done == True:
@@ -147,14 +142,12 @@ class Worker():
 
                 #update network at end of episode
                 if len(episode_buffer) != 0:
-                    v_l,p_l,e_l,g_n,v_n = self.train(episode_buffer, sess, 0.0)
+                    v_l,p_l,e_l = self.train(episode_buffer, sess, 0.0)
 
-                end = time.time()
                 #save stats
                 if episode_count % self.config.save_freq == 0 and episode_count != 0:
                     saver.save(sess, self.config.model_path + '/model-' + str(episode_count) + 'cptk')
                     print "saved model"
-    
                     mean_reward = np.mean(self.episode_rewards[-5:])
                     mean_value = np.mean(self.episode_mean_values[-5:])
                     summary = tf.Summary()
@@ -163,8 +156,6 @@ class Worker():
                     summary.value.add(tag='Losses/Value_Loss', simple_value=float(v_l))
                     summary.value.add(tag='Losses/Policy_Loss', simple_value=float(p_l))
                     summary.value.add(tag='Losses/Entropy', simple_value=float(e_l))
-                    summary.value.add(tag='Losses/Grad Norm', simple_value=float(g_n))
-                    summary.value.add(tag='Losses/Var Norm', simple_value=float(v_n))
 
                     self.summary_writer.add_summary(summary, episode_count)
                     self.summary_writer.flush()
@@ -177,7 +168,6 @@ if __name__ == '__main__':
 
     tf.reset_default_graph()
     config = Config()
-    mutex = threading.Lock()#currently not used
     
     with tf.device("/cpu:0"):   
         global_episodes = tf.Variable(0, dtype=tf.int32, name = 'global_episodes', trainable=False)
@@ -186,7 +176,7 @@ if __name__ == '__main__':
 
         workers = []
         for i in range(config.num_workers):
-            workers.append(Worker(i, config, trainer, global_episodes, mutex))
+            workers.append(Worker(i, config, trainer, global_episodes))
         saver = tf.train.Saver(max_to_keep=config.checkpoints)
         
     with tf.Session() as sess:

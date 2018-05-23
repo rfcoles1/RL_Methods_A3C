@@ -3,7 +3,7 @@ import gym
 import multiprocessing
 
 class Config:
-    env_name = 'MountainCar-v0'
+    env_name = 'Acrobot-v1'
     if env_name == 'CartPole-v0' or env_name == 'MountainCar-v0' or env_name == 'Acrobot-v1':
         mode = 'discrete'
     elif env_name == 'MountainCarContinuous-v0' or env_name == 'Pendulum-v0': 
@@ -25,7 +25,7 @@ class Config:
     if not os.path.exists(model_path):
         os.makedirs(model_path)
 
-    num_workers = multiprocessing.cpu_count() 
+    num_workers = 2#multiprocessing.cpu_count() 
 
     game = gym.make(env_name)
     s_size = len(game.reset()) 

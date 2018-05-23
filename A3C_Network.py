@@ -6,7 +6,7 @@ class AC_Network():
     def __init__(self,config,scope,trainer):
         self.config = config
         with tf.variable_scope(scope):
-                      
+            print self.config.a_size 
             #input layers           
             self.inputs = tf.placeholder(shape=[None, self.config.s_size], dtype = tf.float32)
 
@@ -46,7 +46,7 @@ class AC_Network():
             
             if scope != 'global': #allows a worker access to loss function and gradient update functions
                 self.target_v = tf.placeholder(shape = [None], dtype = tf.float32)
-                self.td_loss = self.target_v - tf.reshape(self.value,[-1])
+                self.td_loss = tf.reshape(self.value,[-1]) - self.target_v
                 self.value_loss = 0.5*tf.reduce_sum(tf.square(self.td_loss))
 
                 self.advantages = tf.placeholder(shape = [None], dtype = tf.float32)
@@ -55,24 +55,22 @@ class AC_Network():
                     self.actions = tf.placeholder(shape = [None,], dtype = tf.int32)
                     self.actions_onehot = tf.one_hot(self.actions, self.config.a_size, dtype = tf.float32)
                     self.responsible_outputs = tf.reduce_sum(self.policy * self.actions_onehot, [1])
-                    self.entropy = -tf.reduce_sum(self.policy * tf.log(self.policy))
+                    self.entropy = -tf.reduce_sum(self.policy * tf.log(self.policy))#shannon entropy
                     self.policy_loss = -tf.reduce_sum(tf.log(self.responsible_outputs)*self.advantages)
                     self.A = tf.multinomial(tf.log(self.policy), 1)[0][0]
-                
+
                 elif config.mode == 'continuous':
                     self.actions = tf.placeholder(shape = [None, self.config.a_size], dtype = tf.float32)
                     self.log_prob = self.policy_norm_dist.log_prob(self.actions)
-                    self.entropy = self.policy_norm_dist.entropy() 
+                    self.entropy = tf.reduce_sum(self.policy_norm_dist.entropy())
                     self.policy_loss = -tf.reduce_mean(-(self.entropy + self.log_prob*self.td_loss))
                     self.A = tf.clip_by_value(tf.squeeze(self.policy_norm_dist.sample(1), axis=0), self.config.a_bounds[0][0], self.config.a_bounds[1][0])
 
                 self.loss = 0.5*self.value_loss + self.policy_loss - self.entropy * self.config.entropy_beta
                 local_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope)
                 self.gradients = tf.gradients(self.loss, local_vars)
-                self.var_norms = tf.global_norm(local_vars)
-                grads, self.grad_norms, = tf.clip_by_global_norm(self.gradients,40.0)
-
+                self.gradients,_ = tf.clip_by_global_norm(self.gradients, 40.0)
                 global_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, 'global')
-                self.apply_grads = trainer.apply_gradients(zip(grads,global_vars))
+                self.apply_grads = trainer.apply_gradients(zip(self.gradients,global_vars))
 
                     
