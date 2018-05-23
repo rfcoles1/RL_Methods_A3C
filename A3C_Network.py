@@ -15,7 +15,7 @@ class AC_Network():
                 weights_initializer = tf.contrib.layers.xavier_initializer(),
                 biases_initializer = tf.zeros_initializer())
 
-            fc2 = slim.fully_connected(self.inputs, self.config.num_hidden,
+            fc2 = slim.fully_connected(fc1, self.config.num_hidden,
                 activation_fn = tf.nn.relu,
                 weights_initializer = tf.contrib.layers.xavier_initializer(),
                 biases_initializer = tf.zeros_initializer())
@@ -57,6 +57,8 @@ class AC_Network():
                     self.responsible_outputs = tf.reduce_sum(self.policy * self.actions_onehot, [1])
                     self.entropy = -tf.reduce_sum(self.policy * tf.log(self.policy))
                     self.policy_loss = -tf.reduce_sum(tf.log(self.responsible_outputs)*self.advantages)
+                    self.A = tf.multinomial(tf.log(self.policy), 1)[0][0]
+                
                 elif config.mode == 'continuous':
                     self.actions = tf.placeholder(shape = [None, self.config.a_size], dtype = tf.float32)
                     self.log_prob = self.policy_norm_dist.log_prob(self.actions)

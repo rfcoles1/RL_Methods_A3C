@@ -112,15 +112,8 @@ class Worker():
 
                 
                 for i in range(self.config.max_episode_len):
-                    if self.config.mode == 'discrete':
-                        policy, value = sess.run([self.local_AC.policy, self.local_AC.value],
-                            feed_dict={self.local_AC.inputs:[s]})
-                        a = np.random.choice(policy[0], p = policy[0])
-                        a = np.argmax(policy == a)
-                    elif self.config.mode == 'continuous':
-                        a,value = sess.run([self.local_AC.A, self.local_AC.value],
-                            feed_dict={self.local_AC.inputs:[s]})
-
+                    a,value = sess.run([self.local_AC.A, self.local_AC.value],
+                        feed_dict={self.local_AC.inputs:[s]})
                     s1,r,done,_ = self.env.step(a)    
                     s1 = s1.flatten()
                     if done == False:
@@ -180,37 +173,37 @@ class Worker():
                     sess.run(self.increment)
                 episode_count += 1
                 
+if __name__ == '__main__':
 
-tf.reset_default_graph()
-config = Config()
-mutex = threading.Lock()#currently not used
+    tf.reset_default_graph()
+    config = Config()
+    mutex = threading.Lock()#currently not used
+    
+    with tf.device("/cpu:0"):   
+        global_episodes = tf.Variable(0, dtype=tf.int32, name = 'global_episodes', trainable=False)
+        trainer = tf.train.AdamOptimizer(learning_rate=config.lr)
+        master_network = AC_Network(config, 'global', None)
 
-with tf.device("/cpu:0"):   
-    global_episodes = tf.Variable(0, dtype=tf.int32, name = 'global_episodes', trainable=False)
-    trainer = tf.train.AdamOptimizer(learning_rate=config.lr)
-    master_network = AC_Network(config, 'global', None)
-
-    workers = []
-    for i in range(config.num_workers):
-        workers.append(Worker(i, config, trainer, global_episodes, mutex))
-    saver = tf.train.Saver(max_to_keep=config.checkpoints)
+        workers = []
+        for i in range(config.num_workers):
+            workers.append(Worker(i, config, trainer, global_episodes, mutex))
+        saver = tf.train.Saver(max_to_keep=config.checkpoints)
         
+    with tf.Session() as sess:
+        coord = tf.train.Coordinator()
 
-with tf.Session() as sess:
-    coord = tf.train.Coordinator()
-
-    if config.load_model == True:
-        ckpt = tf.train.get_checkpoint_state(config.model_path)
-        saver.restore(sess, ckpt.model_checkpoint_path)
-    else:
-        sess.run(tf.global_variables_initializer())
-
-    worker_threads = []
-    for worker in workers: 
-        worker_work = lambda: worker.work(sess, coord, saver)
-        t = threading.Thread(target = (worker_work))
-        t.start()
-        worker_threads.append(t)
-        time.sleep(0.1)
-    coord.join(worker_threads)
+        if config.load_model == True:
+            ckpt = tf.train.get_checkpoint_state(config.model_path)
+            saver.restore(sess, ckpt.model_checkpoint_path)
+        else:
+            sess.run(tf.global_variables_initializer())
+   
+        worker_threads = []
+        for worker in workers: 
+            worker_work = lambda: worker.work(sess,coord,saver)
+            t = threading.Thread(target = worker_work)
+            #t = multiprocessing.Process(target = worker.work, args=(sess,coord,saver))
+            t.start()
+            worker_threads.append(t)
+        coord.join(worker_threads)
 
