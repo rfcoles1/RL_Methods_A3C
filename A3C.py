@@ -3,20 +3,16 @@ import scipy.signal
 import tensorflow as tf
 import tensorflow.contrib.slim as slim
 import threading 
-import multiprocessing
 import os
 import gym 
 from A3C_Config import Config
 from A3C_Network import AC_Network
-
-
 
 """
 credit 
 github.com/awjuliani for A3C framework and discrete network
 github.com/go2sea for discrete/continuous distinction
 """
-
 
 #helper functions
 #sets workers parameters to be same as the global network
@@ -33,6 +29,8 @@ def update_target_graph(from_scope,to_scope):
 def discount(rewards,gamma): 
     return scipy.signal.lfilter([1],[1,-gamma],rewards[::-1],axis=0)[::-1]
 
+def make_vid(frames, fname):
+    return 0 
 
 class Worker():
     def __init__(self, name, config, trainer, global_episodes):
@@ -45,7 +43,7 @@ class Worker():
         self.episode_rewards = []
         self.episode_lengths = []
         self.episode_mean_values = []
-        self.summary_writer = tf.summary.FileWriter("train_" + str(self.number))
+        self.summary_writer = tf.summary.FileWriter(self.config.worker_path + "train_" + str(self.number))
 
         self.env = gym.make(self.config.env_name)
 
@@ -111,11 +109,8 @@ class Worker():
                         feed_dict={self.local_AC.inputs:[s]})
                     s1,r,done,_ = self.env.step(a)    
                     s1 = s1.flatten()
-                    if done == False:
-                        episode_frames[i] = s1
-                    else: 
-                        s1 = s
 
+                    episode_frames[i] = s1 
                     episode_buffer.append([s,a,r,s1,done,value[0,0]])
                     episode_values[i] = value[0,0]
 
@@ -145,7 +140,7 @@ class Worker():
                     v_l,p_l,e_l = self.train(episode_buffer, sess, 0.0)
 
                 #save stats
-                if episode_count % self.config.save_freq == 0 and episode_count != 0:
+                if episode_count % self.config.save_freq == 0 and episode_count != 0:                   
                     saver.save(sess, self.config.model_path + '/model-' + str(episode_count) + 'cptk')
                     print "saved model"
                     mean_reward = np.mean(self.episode_rewards[-5:])
@@ -159,41 +154,43 @@ class Worker():
 
                     self.summary_writer.add_summary(summary, episode_count)
                     self.summary_writer.flush()
+                    
+                    if episode_count % self.config.render_freq == 0 and self.name == 'worker_0' and self.config.render:
+                        images = np.array(episode_frames)
 
                 if self.name == 'worker_0':
                     sess.run(self.increment)
                 episode_count += 1
-                
-if __name__ == '__main__':
 
-    tf.reset_default_graph()
-    config = Config()
+
+
+tf.reset_default_graph()
+config = Config()
     
-    with tf.device("/cpu:0"):   
-        global_episodes = tf.Variable(0, dtype=tf.int32, name = 'global_episodes', trainable=False)
-        trainer = tf.train.AdamOptimizer(learning_rate=config.lr)
-        master_network = AC_Network(config, 'global', None)
+with tf.device("/cpu:0"):   
+    global_episodes = tf.Variable(0, dtype=tf.int32, name = 'global_episodes', trainable=False)
+    trainer = tf.train.AdamOptimizer(learning_rate=config.lr)
+    master_network = AC_Network(config, 'global', None)
 
-        workers = []
-        for i in range(config.num_workers):
-            workers.append(Worker(i, config, trainer, global_episodes))
-        saver = tf.train.Saver(max_to_keep=config.checkpoints)
+    workers = []
+    for i in range(config.num_workers):
+        workers.append(Worker(i, config, trainer, global_episodes))
+    saver = tf.train.Saver(max_to_keep=config.checkpoints)
         
-    with tf.Session() as sess:
-        coord = tf.train.Coordinator()
+with tf.Session() as sess:
+    coord = tf.train.Coordinator()
 
-        if config.load_model == True:
-            ckpt = tf.train.get_checkpoint_state(config.model_path)
-            saver.restore(sess, ckpt.model_checkpoint_path)
-        else:
-            sess.run(tf.global_variables_initializer())
+    if config.load_model == True:
+        ckpt = tf.train.get_checkpoint_state(config.model_path)
+        saver.restore(sess, ckpt.model_checkpoint_path)
+    else:
+        sess.run(tf.global_variables_initializer())
    
-        worker_threads = []
-        for worker in workers: 
-            worker_work = lambda: worker.work(sess,coord,saver)
-            t = threading.Thread(target = worker_work)
-            #t = multiprocessing.Process(target = worker.work, args=(sess,coord,saver))
-            t.start()
-            worker_threads.append(t)
-        coord.join(worker_threads)
+    worker_threads = []
+    for worker in workers: 
+        worker_work = lambda: worker.work(sess,coord,saver)
+        t = threading.Thread(target = worker_work)
+        t.start()
+        worker_threads.append(t)
+    coord.join(worker_threads)
 

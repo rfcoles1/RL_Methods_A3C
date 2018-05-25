@@ -6,7 +6,6 @@ class AC_Network():
     def __init__(self,config,scope,trainer):
         self.config = config
         with tf.variable_scope(scope):
-            print self.config.a_size 
             #input layers           
             self.inputs = tf.placeholder(shape=[None, self.config.s_size], dtype = tf.float32)
 
@@ -57,8 +56,8 @@ class AC_Network():
                     self.responsible_outputs = tf.reduce_sum(self.policy * self.actions_onehot, [1])
                     self.entropy = -tf.reduce_sum(self.policy * tf.log(self.policy))#shannon entropy
                     self.policy_loss = -tf.reduce_sum(tf.log(self.responsible_outputs)*self.advantages)
-                    self.A = tf.multinomial(tf.log(self.policy), 1)[0][0]
-
+                    self.A = tf.multinomial(tf.log(tf.clip_by_value(self.policy,1e-10, 1)), 1)[0][0]
+                    
                 elif config.mode == 'continuous':
                     self.actions = tf.placeholder(shape = [None, self.config.a_size], dtype = tf.float32)
                     self.log_prob = self.policy_norm_dist.log_prob(self.actions)
@@ -66,7 +65,8 @@ class AC_Network():
                     self.policy_loss = -tf.reduce_mean(-(self.entropy + self.log_prob*self.td_loss))
                     self.A = tf.clip_by_value(tf.squeeze(self.policy_norm_dist.sample(1), axis=0), self.config.a_bounds[0][0], self.config.a_bounds[1][0])
 
-                self.loss = 0.5*self.value_loss + self.policy_loss - self.entropy * self.config.entropy_beta
+                
+                self.loss = self.value_loss + self.policy_loss - self.entropy * self.config.entropy_beta
                 local_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope)
                 self.gradients = tf.gradients(self.loss, local_vars)
                 self.gradients,_ = tf.clip_by_global_norm(self.gradients, 40.0)
