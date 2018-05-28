@@ -3,7 +3,6 @@ import gym
 import multiprocessing
 import time 
 
-print time.ctime()
 
 class Config:
     ### GAME PARAMS ###
@@ -39,20 +38,16 @@ class Config:
     model_path = './Models/'
     if not os.path.exists(model_path):
         os.makedirs(model_path)
-    model_path = model_path + str(time.ctime())    
+    model_path = model_path + str(time.ctime()) + '/'    
 
     worker_path = './Workers/'
     if not os.path.exists(worker_path):
         os.makedirs(worker_path)
-    worker_path = worker_path + str(time.ctime())
+    worker_path = worker_path + str(time.ctime()) + '/'
     
     ### VIDEO PARAMS ###
-    render_freq = 250
-    render = False
-    if render == True:
-        video_path = './Videos/'
-        if not os.path.exists(video_path):
-            os.makedirs(video_path)
-        video_path = video_path + str(time.ctime())
+    video_path = './Videos/' + str(time.ctime()) + '/'
+    if not os.path.exists(video_path):
+        os.makedirs(video_path)
     
 

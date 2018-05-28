@@ -8,6 +8,8 @@ import gym
 from A3C_Config import Config
 from A3C_Network import AC_Network
 
+import moviepy.editor as mpy
+
 """
 credit 
 github.com/awjuliani for A3C framework and discrete network
@@ -28,9 +30,6 @@ def update_target_graph(from_scope,to_scope):
 #calculates discounted returns
 def discount(rewards,gamma): 
     return scipy.signal.lfilter([1],[1,-gamma],rewards[::-1],axis=0)[::-1]
-
-def make_vid(frames, fname):
-    return 0 
 
 class Worker():
     def __init__(self, name, config, trainer, global_episodes):
@@ -155,8 +154,8 @@ class Worker():
                     self.summary_writer.add_summary(summary, episode_count)
                     self.summary_writer.flush()
                     
-                    if episode_count % self.config.render_freq == 0 and self.name == 'worker_0' and self.config.render:
-                        images = np.array(episode_frames)
+                    frames = np.array(episode_frames)
+                    np.savetxt(self.config.video_path + str(episode_count) + '.dat', frames)
 
                 if self.name == 'worker_0':
                     sess.run(self.increment)
